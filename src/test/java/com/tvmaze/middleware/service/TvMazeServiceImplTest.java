@@ -1,5 +1,6 @@
 package com.tvmaze.middleware.service;
 import com.tvmaze.middleware.dto.CommentRequestDto;
+import com.tvmaze.middleware.dto.CommentSummaryDto;
 import com.tvmaze.middleware.dto.ShowSearchResponseDto;
 import com.tvmaze.middleware.dto.external.TvMazeSearchItemDto;
 import com.tvmaze.middleware.model.CommentDocument;
@@ -219,5 +220,35 @@ public class TvMazeServiceImplTest {
         assertEquals(5, result.get(0).getComments().get(0).getRating());
 
         verify(commentRepository, times(1)).findByShowId(139L);
+    }
+    
+    @Test
+    @DisplayName("getShowById - Debería retornar datos del show junto con su lista de comentarios")
+    void getShowById_ShouldReturnShowWithComments_WhenShowExistsInCache() {
+        Long showId = 1L;
+        Map<String, Object> cachedData = new HashMap<>();
+        cachedData.put("id", showId);
+        cachedData.put("name", "Batman");
+
+        ShowDocument cachedDocument = new ShowDocument(showId, cachedData, Instant.now());
+        when(showRepository.findById(showId)).thenReturn(Optional.of(cachedDocument));
+
+        CommentDocument mockComment = new CommentDocument(showId, "Gran pelicula final", 4);
+        when(commentRepository.findByShowId(showId)).thenReturn(List.of(mockComment));
+
+        Map<String, Object> result = tvMazeService.getShowById(showId);
+
+        assertNotNull(result);
+        assertEquals("Batman", result.get("name"));
+        assertTrue(result.containsKey("comments"));
+
+        @SuppressWarnings("unchecked")
+        List<CommentSummaryDto> comments = (List<CommentSummaryDto>) result.get("comments");
+        assertEquals(1, comments.size());
+        assertEquals("Gran pelicula final", comments.get(0).getComment());
+        assertEquals(4, comments.get(0).getRating());
+
+        verify(showRepository, times(1)).findById(showId);
+        verify(commentRepository, times(1)).findByShowId(showId);
     }
 }

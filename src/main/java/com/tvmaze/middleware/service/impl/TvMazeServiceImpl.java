@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -93,28 +94,42 @@ public class TvMazeServiceImpl implements TvMazeService {
     @Override
     @SuppressWarnings("unchecked")
     public Map<String, Object> getShowById(Long showId) {
+        Map<String, Object> showData;
         // 1. Validar si existe en la base de datos de MongoDB (Caché)
         Optional<ShowDocument> cachedShow = showRepository.findById(showId);
         if (cachedShow.isPresent()) {
-            return cachedShow.get().getData();
-        }
-
-        // 2. Si no se encuentra, consumir la API externa de TVMaze
-        String url = TVMAZE_SHOW_BY_ID_URL + showId;
-        try {
-            Map<String, Object> apiResponse = restTemplate.getForObject(url, Map.class);
-            if (apiResponse != null) {
-                // 3. Guardar el resultado en MongoDB antes de retornar
+            //return cachedShow.get().getData();
+            showData = new HashMap<>(cachedShow.get().getData());
+        }else {
+            String url = TVMAZE_SHOW_BY_ID_URL + showId;
+            try {
+                Map<String, Object> apiResponse = restTemplate.getForObject(url, Map.class);
+                if (apiResponse == null) {
+                    throw new ResourceNotFoundException("No se encontró información para el show con ID: " + showId);
+                }
+                
                 ShowDocument showDocument = new ShowDocument(showId, apiResponse, Instant.now());
                 showRepository.save(showDocument);
-            }
+                showData = new HashMap<>(apiResponse);
 
-            return apiResponse;
-            
+                //return apiResponse;
+            }
+            catch(HttpClientErrorException.NotFound e){
+                throw new ResourceNotFoundException("No se encontró el show con ID: " + showId);
+            }
         }
-        catch(HttpClientErrorException.NotFound e){
-            throw new ResourceNotFoundException("No se encontró el show con ID: " + showId);
-        }
+
+        // Consultar comentarios guardados para este show
+        List<CommentDocument> commentDocs = commentRepository.findByShowId(showId);
+        List<CommentSummaryDto> comments = commentDocs.stream()
+                .map(c -> new CommentSummaryDto(c.getComment(), c.getRating()))
+                .toList();
+
+        // Adjuntar la lista de comentarios al objeto de respuesta
+        showData.put("comments", comments);
+
+        return showData;
+        
     }
     
     @Override
