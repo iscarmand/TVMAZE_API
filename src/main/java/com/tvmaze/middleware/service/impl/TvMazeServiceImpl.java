@@ -1,6 +1,7 @@
 package com.tvmaze.middleware.service.impl;
 
 import com.tvmaze.middleware.dto.CommentRequestDto;
+import com.tvmaze.middleware.dto.CommentSummaryDto;
 import com.tvmaze.middleware.dto.ShowSearchResponseDto;
 import com.tvmaze.middleware.dto.external.TvMazeSearchItemDto;
 import com.tvmaze.middleware.exception.ResourceNotFoundException;
@@ -70,6 +71,14 @@ public class TvMazeServiceImpl implements TvMazeService {
         } else if (show.getWebChannel() != null && show.getWebChannel().getName() != null) {
             channelName = show.getWebChannel().getName();
         }
+        
+        // Buscar comentarios existentes en MongoDB para este show
+        List<CommentDocument> commentDocs = commentRepository.findByShowId(show.getId());
+    
+        // Mapear la lista de documentos al DTO requerido (comment y rating)
+        List<CommentSummaryDto> comments = commentDocs.stream()
+                .map(c -> new CommentSummaryDto(c.getComment(), c.getRating()))
+                .toList();
 
         return new ShowSearchResponseDto(
                 show.getId(),
@@ -77,7 +86,8 @@ public class TvMazeServiceImpl implements TvMazeService {
                 channelName,
                 show.getSummary(),
                 show.getGenres(),
-                Collections.emptyList()
+                comments
+                //Collections.emptyList()
         );
     }
     @Override

@@ -185,4 +185,39 @@ public class TvMazeServiceImplTest {
         assertEquals("Excelente", result.get(0).getComment());
         verify(commentRepository, times(1)).findByShowId(showId);
     }
+    
+    @Test
+    @DisplayName("searchShows - Debería retornar lista mapeada con sus comentarios asociados")
+    void searchShows_ShouldReturnMappedListWithComments_WhenApiReturnsData() {
+        TvMazeSearchItemDto item = new TvMazeSearchItemDto();
+        TvMazeSearchItemDto.TvMazeShowDto show = new TvMazeSearchItemDto.TvMazeShowDto();
+        show.setId(139L);
+        show.setName("Batman");
+        show.setGenres(List.of("Drama", "Suspenso"));
+
+        TvMazeSearchItemDto.NetworkDto network = new TvMazeSearchItemDto.NetworkDto();
+        network.setName("DC COMIC");
+        show.setNetwork(network);
+
+        item.setShow(show);
+        TvMazeSearchItemDto[] mockResponse = new TvMazeSearchItemDto[]{item};
+
+        // Simular comentario existente en Mongo
+        CommentDocument mockComment = new CommentDocument(139L, "Excelente pelicula", 5);
+        when(commentRepository.findByShowId(139L)).thenReturn(List.of(mockComment));
+
+        when(restTemplate.getForObject(anyString(), eq(TvMazeSearchItemDto[].class)))
+                .thenReturn(mockResponse);
+
+        List<ShowSearchResponseDto> result = tvMazeService.searchShows("Batman");
+
+        assertNotNull(result);
+        assertEquals(1, result.size());
+        assertEquals("Batman", result.get(0).getName());
+        assertEquals(1, result.get(0).getComments().size());
+        assertEquals("Excelente pelicula", result.get(0).getComments().get(0).getComment());
+        assertEquals(5, result.get(0).getComments().get(0).getRating());
+
+        verify(commentRepository, times(1)).findByShowId(139L);
+    }
 }
