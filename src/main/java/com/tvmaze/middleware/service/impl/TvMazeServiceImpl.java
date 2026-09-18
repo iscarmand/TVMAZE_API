@@ -1,9 +1,12 @@
 package com.tvmaze.middleware.service.impl;
 
+import com.tvmaze.middleware.dto.CommentRequestDto;
 import com.tvmaze.middleware.dto.ShowSearchResponseDto;
 import com.tvmaze.middleware.dto.external.TvMazeSearchItemDto;
 import com.tvmaze.middleware.exception.ResourceNotFoundException;
+import com.tvmaze.middleware.model.CommentDocument;
 import com.tvmaze.middleware.model.ShowDocument;
+import com.tvmaze.middleware.repository.CommentRepository;
 import com.tvmaze.middleware.repository.ShowRepository;
 import com.tvmaze.middleware.service.TvMazeService;
 import java.time.Instant;
@@ -24,13 +27,16 @@ public class TvMazeServiceImpl implements TvMazeService {
 
     private final RestTemplate restTemplate;
     private final ShowRepository showRepository;
+    private final CommentRepository commentRepository;
     
     private static final String TVMAZE_SEARCH_URL = "http://api.tvmaze.com/search/shows";
     private static final String TVMAZE_SHOW_BY_ID_URL = "https://api.tvmaze.com/shows/";
 
-    public TvMazeServiceImpl(RestTemplate restTemplate, ShowRepository showRepository) {
+    public TvMazeServiceImpl(RestTemplate restTemplate, ShowRepository showRepository, CommentRepository commentRepository) {
         this.restTemplate = restTemplate;
         this.showRepository = showRepository;
+        this.commentRepository = commentRepository;
+        
     }
 
     @Override
@@ -99,5 +105,24 @@ public class TvMazeServiceImpl implements TvMazeService {
         catch(HttpClientErrorException.NotFound e){
             throw new ResourceNotFoundException("No se encontró el show con ID: " + showId);
         }
+    }
+    
+    @Override
+    public CommentDocument addComment(Long showId, CommentRequestDto commentRequest) {
+        // Validar que el show exista antes de comentar
+        getShowById(showId);
+
+        CommentDocument commentDocument = new CommentDocument(
+                showId,
+                commentRequest.getComment(),
+                commentRequest.getRating()
+        );
+
+        return commentRepository.save(commentDocument);
+    }
+
+    @Override
+    public List<CommentDocument> getCommentsByShowId(Long showId) {
+        return commentRepository.findByShowId(showId);
     }
 }

@@ -1,7 +1,10 @@
 package com.tvmaze.middleware.service;
+import com.tvmaze.middleware.dto.CommentRequestDto;
 import com.tvmaze.middleware.dto.ShowSearchResponseDto;
 import com.tvmaze.middleware.dto.external.TvMazeSearchItemDto;
+import com.tvmaze.middleware.model.CommentDocument;
 import com.tvmaze.middleware.model.ShowDocument;
+import com.tvmaze.middleware.repository.CommentRepository;
 import com.tvmaze.middleware.repository.ShowRepository;
 import com.tvmaze.middleware.service.impl.TvMazeServiceImpl;
 import java.time.Instant;
@@ -27,6 +30,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+
+
 /**
  * @author armand
  */
@@ -34,12 +39,14 @@ public class TvMazeServiceImplTest {
     private RestTemplate restTemplate;
     private TvMazeServiceImpl tvMazeService;
     private ShowRepository showRepository;
+    private CommentRepository commentRepository;
 
     @BeforeEach
     void setUp() {
         restTemplate = Mockito.mock(RestTemplate.class);
         showRepository = Mockito.mock(ShowRepository.class);
-        tvMazeService = new TvMazeServiceImpl(restTemplate,showRepository);
+        commentRepository = Mockito.mock(CommentRepository.class);
+        tvMazeService = new TvMazeServiceImpl(restTemplate,showRepository,commentRepository);
         
     }
 
@@ -127,5 +134,55 @@ public class TvMazeServiceImplTest {
         verify(showRepository, times(1)).findById(showId);
         verify(restTemplate, times(1)).getForObject(anyString(), eq(Map.class));
         verify(showRepository, times(1)).save(any(ShowDocument.class)); // Garantiza persistencia
+    }
+    
+    @Test
+    @DisplayName("addComment - Debería guardar y retornar el comentario cuando el show existe")
+    void addComment_ShouldSaveAndReturnComment_WhenShowExists() {
+        // Arrange
+        Long showId = 1L;
+        CommentRequestDto requestDto = new CommentRequestDto("Muy buena serie", 5);
+        
+        // Simular que el show existe en caché
+        Map<String, Object> cachedData = Map.of("id", showId, "name", "Under the Dome");
+        ShowDocument showDocument = new ShowDocument(showId, cachedData, Instant.now());
+        when(showRepository.findById(showId)).thenReturn(Optional.of(showDocument));
+
+        // Simular el guardado en la colección de comentarios
+        CommentDocument expectedComment = new CommentDocument(showId, "Muy buena serie", 5);
+        expectedComment.setId("comment-123");
+        when(commentRepository.save(any(CommentDocument.class))).thenReturn(expectedComment);
+
+        // Act
+        CommentDocument result = tvMazeService.addComment(showId, requestDto);
+
+        // Assert
+        assertNotNull(result);
+        assertEquals("comment-123", result.getId());
+        assertEquals("Muy buena serie", result.getComment());
+        assertEquals(5, result.getRating());
+        
+        verify(commentRepository, times(1)).save(any(CommentDocument.class));
+    }
+
+    @Test
+    @DisplayName("getCommentsByShowId - Debería retornar la lista de comentarios asociados a un show")
+    void getCommentsByShowId_ShouldReturnCommentsList() {
+        // Arrange
+        Long showId = 1L;
+        CommentDocument comment1 = new CommentDocument(showId, "Excelente", 5);
+        CommentDocument comment2 = new CommentDocument(showId, "Aceptable", 3);
+        List<CommentDocument> mockComments = List.of(comment1, comment2);
+
+        when(commentRepository.findByShowId(showId)).thenReturn(mockComments);
+
+        // Act
+        List<CommentDocument> result = tvMazeService.getCommentsByShowId(showId);
+
+        // Assert
+        assertNotNull(result);
+        assertEquals(2, result.size());
+        assertEquals("Excelente", result.get(0).getComment());
+        verify(commentRepository, times(1)).findByShowId(showId);
     }
 }
